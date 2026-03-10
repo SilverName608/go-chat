@@ -10,7 +10,7 @@ type User struct { //Пользователь
 	ID           uuid.UUID `json:"id"`
 	Username     string    `json:"username"`
 	Email        string    `json:"email"`
-	PasswordHash string    `json:"-"`
+	PasswordHash string    `json:"password_hash"`
 	CreatedAt    time.Time `json:"created_at"`
-	Updatedat    time.Time `json:"updated_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
