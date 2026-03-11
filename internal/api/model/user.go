@@ -17,8 +17,6 @@ type LoginRequest struct {
 	Password string `json:"password" validate:"required"`
 }
 
-// --- Responses ---
-
 type UserResponse struct {
 	ID        uuid.UUID `json:"id"`
 	Username  string    `json:"username"`
