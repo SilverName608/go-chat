@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>go-chat</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: sans-serif; background: #1a1a2e; color: #eee; height: 100vh; display: flex; }
+
+        #sidebar {
+            width: 260px;
+            background: #16213e;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        #sidebar h2 { color: #e94560; margin-bottom: 10px; }
+
+        #room-list { list-style: none; flex: 1; overflow-y: auto; }
+        #room-list li {
+            padding: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-bottom: 5px;
+        }
+        #room-list li:hover { background: #0f3460; }
+        #room-list li.active { background: #e94560; }
+
+        #create-room { display: flex; gap: 5px; }
+        #create-room input {
+            flex: 1;
+            padding: 8px;
+            border-radius: 6px;
+            border: none;
+            background: #0f3460;
+            color: #eee;
+        }
+        button {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            background: #e94560;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover { opacity: 0.8; }
+
+        #chat {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        #chat-header { font-size: 18px; font-weight: bold; margin-bottom: 15px; color: #e94560; }
+
+        #messages {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .message {
+            background: #16213e;
+            padding: 10px 14px;
+            border-radius: 8px;
+            max-width: 70%;
+        }
+        .message .author { font-size: 12px; color: #e94560; margin-bottom: 4px; }
+        .message.mine { align-self: flex-end; background: #0f3460; }
+
+        #send-area { display: flex; gap: 10px; }
+        #send-area input {
+            flex: 1;
+            padding: 10px;
+            border-radius: 6px;
+            border: none;
+            background: #16213e;
+            color: #eee;
+            font-size: 15px;
+        }
+
+        #auth {
+            position: fixed;
+            inset: 0;
+            background: #1a1a2e;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #auth-box {
+            background: #16213e;
+            padding: 30px;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 300px;
+        }
+        #auth-box h2 { color: #e94560; text-align: center; }
+        #auth-box input {
+            padding: 10px;
+            border-radius: 6px;
+            border: none;
+            background: #0f3460;
+            color: #eee;
+        }
+        #auth-tabs { display: flex; gap: 5px; }
+        #auth-tabs button { flex: 1; background: #0f3460; }
+        #auth-tabs button.active { background: #e94560; }
+        #auth-error { color: #e94560; font-size: 13px; text-align: center; }
+    </style>
+</head>
+<body>
+
+<!-- Экран авторизации -->
+<div id="auth">
+    <div id="auth-box">
+        <h2>go-chat</h2>
+        <div id="auth-tabs">
+            <button class="active" onclick="showTab('login')">Войти</button>
+            <button onclick="showTab('register')">Регистрация</button>
+        </div>
+        <div id="tab-login">
+            <input id="login-email" type="email" placeholder="Email">
+            <input id="login-password" type="password" placeholder="Пароль">
+            <button onclick="login()">Войти</button>
+        </div>
+        <div id="tab-register" style="display:none">
+            <input id="reg-username" type="text" placeholder="Имя пользователя">
+            <input id="reg-email" type="email" placeholder="Email">
+            <input id="reg-password" type="password" placeholder="Пароль">
+            <button onclick="register()">Зарегистрироваться</button>
+        </div>
+        <div id="auth-error"></div>
+    </div>
+</div>
+
+<!-- Основной чат -->
+<div id="sidebar">
+    <h2>💬 go-chat</h2>
+    <div id="create-room">
+        <input id="new-room-name" placeholder="Новая комната">
+        <button onclick="createRoom()">+</button>
+    </div>
+    <ul id="room-list"></ul>
+    <button onclick="logout()">Выйти</button>
+</div>
+
+<div id="chat">
+    <div id="chat-header">Выбери комнату</div>
+    <div id="messages"></div>
+    <div id="send-area">
+        <input id="message-input" placeholder="Сообщение..." onkeydown="if(event.key==='Enter') sendMessage()">
+        <button onclick="sendMessage()">Отправить</button>
+    </div>
+</div>
+
+<script>
+    const API = '/api/v1'
+    let token = localStorage.getItem('token')
+    let currentRoomID = null
+    let currentUserID = null
+    let ws = null
+
+    // --- Авторизация ---
+
+    if (token) {
+        document.getElementById('auth').style.display = 'none'
+        loadRooms()
+    }
+
+    function showTab(tab) {
+        document.getElementById('tab-login').style.display = tab === 'login' ? 'flex' : 'none'
+        document.getElementById('tab-register').style.display = tab === 'register' ? 'flex' : 'none'
+        document.querySelectorAll('#auth-tabs button').forEach((b, i) => {
+            b.classList.toggle('active', (tab === 'login' && i === 0) || (tab === 'register' && i === 1))
+        })
+        document.getElementById('tab-login').style.flexDirection = 'column'
+        document.getElementById('tab-register').style.flexDirection = 'column'
+    }
+
+    async function login() {
+        const email = document.getElementById('login-email').value
+        const password = document.getElementById('login-password').value
+        const res = await fetch(`${API}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        })
+        const data = await res.json()
+        if (!res.ok) { document.getElementById('auth-error').textContent = data; return }
+        token = data.token
+        currentUserID = data.user.id
+        localStorage.setItem('token', token)
+        document.getElementById('auth').style.display = 'none'
+        loadRooms()
+    }
+
+    async function register() {
+        const username = document.getElementById('reg-username').value
+        const email = document.getElementById('reg-email').value
+        const password = document.getElementById('reg-password').value
+        const res = await fetch(`${API}/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, email, password })
+        })
+        if (!res.ok) { document.getElementById('auth-error').textContent = 'Ошибка регистрации'; return }
+        showTab('login')
+    }
+
+    function logout() {
+        localStorage.removeItem('token')
+        location.reload()
+    }
+
+    // --- Комнаты ---
+
+    async function loadRooms() {
+        const res = await fetch(`${API}/rooms`, { headers: { 'Authorization': `Bearer ${token}` } })
+        const data = await res.json()
+        const list = document.getElementById('room-list')
+        list.innerHTML = ''
+        data.rooms.forEach(room => {
+            const li = document.createElement('li')
+            li.textContent = room.name
+            li.onclick = () => joinRoom(room.id, room.name, li)
+            list.appendChild(li)
+        })
+    }
+
+    async function createRoom() {
+        const name = document.getElementById('new-room-name').value
+        if (!name) return
+        await fetch(`${API}/rooms`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ name, description: '' })
+        })
+        document.getElementById('new-room-name').value = ''
+        loadRooms()
+    }
+
+    // --- WebSocket ---
+
+    function joinRoom(roomID, roomName, li) {
+        if (ws) ws.close()
+        currentRoomID = roomID
+        document.getElementById('chat-header').textContent = '# ' + roomName
+        document.getElementById('messages').innerHTML = ''
+        document.querySelectorAll('#room-list li').forEach(el => el.classList.remove('active'))
+        li.classList.add('active')
+
+        ws = new WebSocket(`ws://${location.host}/api/v1/ws/${roomID}?token=${token}`)
+
+        ws.onmessage = (event) => {
+            const msg = JSON.parse(event.data)
+            addMessage(msg)
+        }
+
+        ws.onclose = () => console.log('WebSocket закрыт')
+        ws.onerror = (e) => console.error('WebSocket ошибка', e)
+    }
+
+    function sendMessage() {
+        const input = document.getElementById('message-input')
+        const body = input.value.trim()
+        if (!body || !ws) return
+        ws.send(JSON.stringify({ body }))
+        input.value = ''
+    }
+
+    function addMessage(msg) {
+        const messages = document.getElementById('messages')
+        const div = document.createElement('div')
+        div.className = 'message' + (msg.user_id === currentUserID ? ' mine' : '')
+        div.innerHTML = `<div class="author">${msg.username || msg.user_id}</div><div>${msg.body}</div>`
+        messages.appendChild(div)
+        messages.scrollTop = messages.scrollHeight
+    }
+</script>
+</body>
+</html>
