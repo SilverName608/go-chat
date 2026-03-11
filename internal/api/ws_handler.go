@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 
+	"github.com/SilverName608/go-chat/internal/domain/service"
 	"github.com/SilverName608/go-chat/internal/hub"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -18,11 +19,12 @@ var upgrader = websocket.Upgrader{
 }
 
 type WSHandler struct {
-	hub *hub.Hub
+	hub     *hub.Hub
+	userSvc service.UserService
 }
 
-func NewWSHandler(hub *hub.Hub) *WSHandler {
-	return &WSHandler{hub: hub}
+func NewWSHandler(h *hub.Hub, userSvc service.UserService) *WSHandler {
+	return &WSHandler{hub: h, userSvc: userSvc}
 }
 
 func (wh *WSHandler) ServeWS(w http.ResponseWriter, r *http.Request) {
@@ -39,18 +41,25 @@ func (wh *WSHandler) ServeWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	username := userID.String()
+	user, err := wh.userSvc.GetByID(r.Context(), userID)
+	if err == nil && user != nil {
+		username = user.Username
+	}
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		http.Error(w, "Failed to upgrade connection", http.StatusInternalServerError)
+		http.Error(w, "Failed to upgrade", http.StatusInternalServerError)
 		return
 	}
 
 	client := &hub.Client{
-		Hub:    wh.hub,
-		RoomID: roomID.String(),
-		UserID: userID.String(),
-		Conn:   conn,
-		Send:   make(chan []byte, 256),
+		Hub:      wh.hub,
+		RoomID:   roomID.String(),
+		UserID:   userID.String(),
+		Username: username,
+		Conn:     conn,
+		Send:     make(chan []byte, 256),
 	}
 
 	wh.hub.Register <- client

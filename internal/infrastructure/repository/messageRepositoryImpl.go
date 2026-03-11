@@ -19,7 +19,7 @@ func NewPostgresMessageRepository(pool *pgxpool.Pool) *PostgresMessageRepository
 func (pr *PostgresMessageRepository) Create(ctx context.Context, message *domainModel.Message) (*domainModel.Message, error) {
 	err := pr.pool.QueryRow(
 		ctx,
-		"INSERT INTO messages (room_id, user_id, body) VALUES ($1, $2, $3) RETURNING id, created_at",
+		`INSERT INTO messages (room_id, user_id, body) VALUES ($1, $2, $3) RETURNING id, created_at`,
 		message.RoomId, message.UserId, message.Body,
 	).Scan(&message.ID, &message.CreatedAt)
 	if err != nil {
@@ -30,31 +30,30 @@ func (pr *PostgresMessageRepository) Create(ctx context.Context, message *domain
 
 func (pr *PostgresMessageRepository) FindByRoomID(ctx context.Context, roomID uuid.UUID, limit, offset int) ([]*domainModel.Message, error) {
 	query := `
-        SELECT id, room_id, user_id, body, created_at
-        FROM messages
-        WHERE room_id = $1
-        ORDER BY created_at DESC
-        LIMIT $2 OFFSET $3
+		SELECT m.id, m.room_id, m.user_id, u.username, m.body, m.created_at
+		FROM messages m
+		JOIN users u ON u.id = m.user_id
+		WHERE m.room_id = $1
+		ORDER BY m.created_at DESC
+		LIMIT $2 OFFSET $3
 	`
 
 	rows, err := pr.pool.Query(ctx, query, roomID, limit, offset)
 	if err != nil {
 		return nil, err
 	}
-
 	defer rows.Close()
 
 	var messages []*domainModel.Message
 	for rows.Next() {
 		msg := &domainModel.Message{}
-		err := rows.Scan(&msg.ID, &msg.RoomId, &msg.UserId, &msg.Body, &msg.CreatedAt)
+		err := rows.Scan(&msg.ID, &msg.RoomId, &msg.UserId, &msg.Username, &msg.Body, &msg.CreatedAt)
 		if err != nil {
 			return nil, err
 		}
 		messages = append(messages, msg)
 	}
 	return messages, nil
-
 }
 
 func (pr *PostgresMessageRepository) Delete(ctx context.Context, id uuid.UUID) error {
@@ -63,8 +62,5 @@ func (pr *PostgresMessageRepository) Delete(ctx context.Context, id uuid.UUID) e
 		"DELETE FROM messages WHERE id = $1",
 		id,
 	)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }

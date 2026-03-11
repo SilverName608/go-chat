@@ -9,6 +9,7 @@ import (
 	"github.com/SilverName608/go-chat/internal/domain/service"
 	"github.com/SilverName608/go-chat/internal/infrastructure/repository"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -57,8 +58,9 @@ func (s *UserServiceImpl) Login(ctx context.Context, email, password string) (st
 	}
 
 	t := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user_id": user.ID,
-		"exp":     time.Now().Add(24 * time.Hour).Unix(),
+		"user_id":  user.ID,
+		"username": user.Username,
+		"exp":      time.Now().Add(24 * time.Hour).Unix(),
 	})
 
 	tokenString, err := t.SignedString([]byte(s.jwtSecret))
@@ -67,4 +69,8 @@ func (s *UserServiceImpl) Login(ctx context.Context, email, password string) (st
 	}
 
 	return tokenString, nil
+}
+
+func (s *UserServiceImpl) GetByID(ctx context.Context, id uuid.UUID) (*domainModel.User, error) {
+	return s.repo.FindByID(ctx, id)
 }

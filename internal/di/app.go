@@ -13,6 +13,8 @@ import (
 	"github.com/SilverName608/go-chat/internal/infrastructure/repository"
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/fx"
 
@@ -41,7 +43,9 @@ func NewApp() *fx.App {
 		)),
 
 		fx.Provide(fx.Annotate(
-			application.NewUserService,
+			func(repo repository.UserRepository, cfg *config.Config) service.UserService {
+				return application.NewUserService(repo, cfg.JWTSecret)
+			},
 			fx.As(new(service.UserService)),
 		)),
 		fx.Provide(fx.Annotate(
@@ -55,7 +59,9 @@ func NewApp() *fx.App {
 
 		fx.Provide(hub.NewHub),
 
-		fx.Provide(api.NewMiddleware),
+		fx.Provide(func(cfg *config.Config) *api.Middleware {
+			return api.NewMiddleware(cfg.JWTSecret)
+		}),
 		fx.Provide(api.NewUserHandler),
 		fx.Provide(api.NewRoomHandler),
 		fx.Provide(api.NewWSHandler),
@@ -65,16 +71,16 @@ func NewApp() *fx.App {
 	)
 }
 
-func RunServer(router chi.Router, cfg *config.Config) {
+func RunServer(router chi.Router, cfg *config.Config, h *hub.Hub) {
 	if err := runMigrations(cfg); err != nil {
 		panic(err)
 	}
+	go h.Run()
 	fmt.Printf("Server launch → http://localhost:%s\n", cfg.HTTPPort)
 	if err := http.ListenAndServe(":"+cfg.HTTPPort, router); err != nil {
 		panic(err)
 	}
 }
-
 func runMigrations(cfg *config.Config) error {
 	m, err := migrate.New(
 		"file://migrations",

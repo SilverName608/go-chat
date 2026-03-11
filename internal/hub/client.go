@@ -1,21 +1,35 @@
 package hub
 
 import (
+	"context"
+	"encoding/json"
 	"log"
 
 	"github.com/gorilla/websocket"
 )
 
-const (
-	maxMessageSize = 4096
-)
+const maxMessageSize = 4096
+
+type IncomingMessage struct {
+	Body string `json:"body"`
+}
+
+type OutgoingMessage struct {
+	Type      string `json:"type"`
+	RoomID    string `json:"room_id"`
+	UserID    string `json:"user_id"`
+	Username  string `json:"username"`
+	Body      string `json:"body"`
+	CreatedAt string `json:"created_at"`
+}
 
 type Client struct {
-	Hub    *Hub
-	RoomID string
-	UserID string
-	Conn   *websocket.Conn
-	Send   chan []byte
+	Hub      *Hub
+	RoomID   string
+	UserID   string
+	Username string
+	Conn     *websocket.Conn
+	Send     chan []byte
 }
 
 func (c *Client) ReadPump() {
@@ -34,10 +48,29 @@ func (c *Client) ReadPump() {
 			}
 			break
 		}
+
+		var incoming IncomingMessage
+		if err := json.Unmarshal(message, &incoming); err != nil || incoming.Body == "" {
+			continue
+		}
+
+		outgoing := OutgoingMessage{
+			Type:     "message",
+			RoomID:   c.RoomID,
+			UserID:   c.UserID,
+			Username: c.Username,
+			Body:     incoming.Body,
+		}
+
+		payload, _ := json.Marshal(outgoing)
+
 		c.Hub.Broadcast <- &BroadcastMessage{
-			RoomID:  c.RoomID,
-			UserID:  c.UserID,
-			Payload: message,
+			RoomID:   c.RoomID,
+			UserID:   c.UserID,
+			Username: c.Username,
+			Body:     incoming.Body,
+			Payload:  payload,
+			Ctx:      context.Background(),
 		}
 	}
 }
@@ -52,7 +85,7 @@ func (c *Client) WritePump() {
 			return
 		}
 		if err := c.Conn.WriteMessage(websocket.TextMessage, message); err != nil {
-			log.Printf("error: %v", err)
+			log.Printf("write error: %v", err)
 			return
 		}
 	}

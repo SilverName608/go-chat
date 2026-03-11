@@ -5,284 +5,515 @@
     <title>go-chat</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: sans-serif; background: #1a1a2e; color: #eee; height: 100vh; display: flex; }
+        body { font-family: 'Segoe UI', sans-serif; background: #111; color: #f0f0f0; height: 100vh; display: flex; overflow: hidden; }
 
-        #sidebar {
-            width: 260px;
-            background: #16213e;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
+        #sidebar { width: 280px; background: #1a1a1a; border-right: 1px solid #2a2a2a; display: flex; flex-direction: column; flex-shrink: 0; }
+        #sidebar-header { padding: 14px 16px; border-bottom: 1px solid #2a2a2a; background: #161616; }
+        #sidebar-header h2 { font-size: 15px; color: #fff; margin-bottom: 6px; }
+        #current-user { font-size: 12px; color: #22c55e; background: #1a2e1a; padding: 4px 8px; border-radius: 4px; display: inline-block; }
+        #room-section { flex: 1; overflow-y: auto; padding: 8px; }
+        #room-section-title { font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 1px; padding: 8px; margin-bottom: 4px; }
+        #room-list { list-style: none; }
+        #room-list li { padding: 8px 10px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: #aaa; margin-bottom: 2px; position: relative; }
+        #room-list li:hover { background: #222; color: #fff; }
+        #room-list li.active { background: #1e3a5f; color: #fff; }
+        .room-left { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+        .room-hash { color: #555; flex-shrink: 0; }
+        #room-list li.active .room-hash { color: #60a5fa; }
+        .room-name-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .room-owner-badge { font-size: 9px; color: #f59e0b; background: #2a1f00; padding: 1px 5px; border-radius: 3px; flex-shrink: 0; }
+        .room-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+        .delete-room { opacity: 0; color: #555; font-size: 11px; padding: 2px 5px; border-radius: 3px; cursor: pointer; }
+        #room-list li:hover .delete-room { opacity: 1; }
+        .delete-room:hover { color: #ef4444 !important; background: #2a1a1a; }
 
-        #sidebar h2 { color: #e94560; margin-bottom: 10px; }
+        #create-room-form { padding: 10px; border-top: 1px solid #2a2a2a; display: flex; gap: 6px; }
+        #create-room-form input { flex: 1; padding: 7px 10px; background: #222; border: 1px solid #333; border-radius: 6px; color: #fff; font-size: 13px; outline: none; }
+        #create-room-form input:focus { border-color: #2563eb; }
+        #sidebar-footer { padding: 10px; border-top: 1px solid #2a2a2a; display: flex; gap: 6px; }
 
-        #room-list { list-style: none; flex: 1; overflow-y: auto; }
-        #room-list li {
-            padding: 10px;
-            border-radius: 6px;
-            cursor: pointer;
-            margin-bottom: 5px;
-        }
-        #room-list li:hover { background: #0f3460; }
-        #room-list li.active { background: #e94560; }
+        button { padding: 7px 12px; border: none; border-radius: 6px; background: #2a2a2a; color: #ccc; cursor: pointer; font-size: 13px; transition: all 0.15s; }
+        button:hover { background: #333; color: #fff; }
+        button.primary { background: #2563eb; color: #fff; }
+        button.primary:hover { background: #1d4ed8; }
+        button.danger { background: #7f1d1d; color: #fca5a5; }
+        button.danger:hover { background: #991b1b; }
 
-        #create-room { display: flex; gap: 5px; }
-        #create-room input {
-            flex: 1;
-            padding: 8px;
-            border-radius: 6px;
-            border: none;
-            background: #0f3460;
-            color: #eee;
-        }
-        button {
-            padding: 8px 12px;
-            border: none;
-            border-radius: 6px;
-            background: #e94560;
-            color: white;
-            cursor: pointer;
-        }
-        button:hover { opacity: 0.8; }
+        /* Основная область */
+        #main { flex: 1; display: flex; overflow: hidden; }
 
-        #chat {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            padding: 20px;
-        }
+        #chat { flex: 1; display: flex; flex-direction: column; background: #141414; min-width: 0; }
+        #chat-header { padding: 12px 20px; border-bottom: 1px solid #2a2a2a; background: #1a1a1a; display: flex; align-items: center; justify-content: space-between; }
+        #chat-title { font-size: 15px; font-weight: 600; color: #aaa; }
+        #chat-title.active { color: #fff; }
+        #chat-header-right { font-size: 12px; color: #555; }
 
-        #chat-header { font-size: 18px; font-weight: bold; margin-bottom: 15px; color: #e94560; }
+        #messages { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 2px; }
+        #messages::-webkit-scrollbar { width: 4px; }
+        #messages::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
+        .msg-system { text-align: center; font-size: 11px; padding: 6px; margin: 4px 0; color: #555; }
+        .msg-system.join { color: #22c55e; }
+        .msg-system.leave { color: #ef4444; }
+        .msg-group { margin-bottom: 10px; }
+        .msg-author { font-size: 13px; font-weight: 600; color: #93c5fd; margin-bottom: 3px; display: flex; align-items: center; gap: 8px; }
+        .msg-author.me { color: #86efac; }
+        .msg-time { font-size: 11px; color: #444; font-weight: 400; }
+        .msg-body { font-size: 14px; color: #e2e8f0; line-height: 1.5; }
 
-        #messages {
-            flex: 1;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            margin-bottom: 15px;
-        }
+        #empty-chat { flex: 1; display: flex; align-items: center; justify-content: center; color: #333; font-size: 14px; flex-direction: column; gap: 10px; }
+        #empty-chat .icon { font-size: 48px; }
 
-        .message {
-            background: #16213e;
-            padding: 10px 14px;
-            border-radius: 8px;
-            max-width: 70%;
-        }
-        .message .author { font-size: 12px; color: #e94560; margin-bottom: 4px; }
-        .message.mine { align-self: flex-end; background: #0f3460; }
+        #send-area { padding: 14px 20px; border-top: 1px solid #2a2a2a; display: flex; gap: 10px; align-items: center; background: #1a1a1a; }
+        #message-input { flex: 1; padding: 10px 14px; background: #222; border: 1px solid #2a2a2a; border-radius: 8px; color: #fff; font-size: 14px; outline: none; }
+        #message-input:focus { border-color: #2563eb; }
+        #message-input:disabled { opacity: 0.4; }
 
-        #send-area { display: flex; gap: 10px; }
-        #send-area input {
-            flex: 1;
-            padding: 10px;
-            border-radius: 6px;
-            border: none;
-            background: #16213e;
-            color: #eee;
-            font-size: 15px;
-        }
+        /* Панель участников */
+        #members-panel { width: 200px; background: #1a1a1a; border-left: 1px solid #2a2a2a; display: none; flex-direction: column; flex-shrink: 0; }
+        #members-panel.visible { display: flex; }
+        #members-header { padding: 12px 14px; border-bottom: 1px solid #2a2a2a; font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 1px; }
+        #members-list { flex: 1; overflow-y: auto; padding: 8px; }
+        .member-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; font-size: 13px; color: #aaa; }
+        .member-item:hover { background: #222; }
+        .member-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; flex-shrink: 0; }
+        .member-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .member-crown { font-size: 10px; color: #f59e0b; }
 
-        #auth {
-            position: fixed;
-            inset: 0;
-            background: #1a1a2e;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        #auth-box {
-            background: #16213e;
-            padding: 30px;
-            border-radius: 12px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            width: 300px;
-        }
-        #auth-box h2 { color: #e94560; text-align: center; }
-        #auth-box input {
-            padding: 10px;
-            border-radius: 6px;
-            border: none;
-            background: #0f3460;
-            color: #eee;
-        }
-        #auth-tabs { display: flex; gap: 5px; }
-        #auth-tabs button { flex: 1; background: #0f3460; }
-        #auth-tabs button.active { background: #e94560; }
-        #auth-error { color: #e94560; font-size: 13px; text-align: center; }
+        /* Auth */
+        #auth { position: fixed; inset: 0; background: #0d0d0d; display: flex; align-items: center; justify-content: center; z-index: 100; }
+        #auth-box { background: #1a1a1a; border: 1px solid #2a2a2a; padding: 32px; border-radius: 12px; width: 340px; display: flex; flex-direction: column; gap: 12px; }
+        #auth-box h2 { color: #fff; font-size: 22px; text-align: center; }
+        #auth-box p { color: #555; font-size: 12px; text-align: center; }
+        #auth-box input { padding: 10px 14px; background: #222; border: 1px solid #333; border-radius: 8px; color: #fff; font-size: 14px; outline: none; width: 100%; }
+        #auth-box input:focus { border-color: #2563eb; }
+        #auth-tabs { display: flex; gap: 4px; background: #222; padding: 4px; border-radius: 8px; }
+        #auth-tabs button { flex: 1; background: transparent; color: #666; padding: 8px; border-radius: 6px; }
+        #auth-tabs button.active { background: #2a2a2a; color: #fff; }
+        #auth-error { font-size: 12px; text-align: center; min-height: 16px; }
+
+        .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); align-items: center; justify-content: center; z-index: 50; }
+        .modal-bg.open { display: flex; }
+        .modal-box { background: #1a1a1a; border: 1px solid #2a2a2a; padding: 28px; border-radius: 12px; width: 320px; display: flex; flex-direction: column; gap: 12px; }
+        .modal-box h3 { color: #fff; font-size: 16px; }
+        .modal-box input { padding: 10px 14px; background: #222; border: 1px solid #333; border-radius: 8px; color: #fff; font-size: 14px; outline: none; }
+        .modal-actions { display: flex; gap: 8px; }
+
+        #debug { position: fixed; top: 10px; right: 10px; width: 260px; max-height: 150px; background: #0a0a0a; border: 1px solid #2a2a2a; border-radius: 8px; padding: 8px; font-size: 11px; font-family: monospace; overflow-y: auto; z-index: 9999; opacity: 0.8; }
+        #debug:hover { opacity: 1; }
+        #debug-title { color: #555; font-weight: bold; margin-bottom: 4px; display: flex; justify-content: space-between; }
+        #debug-log div { margin-bottom: 2px; padding-bottom: 2px; border-bottom: 1px solid #111; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ok { color: #22c55e; } .err { color: #ef4444; } .info { color: #60a5fa; }
     </style>
 </head>
 <body>
 
-<!-- Экран авторизации -->
 <div id="auth">
     <div id="auth-box">
-        <h2>go-chat</h2>
+        <h2>💬 go-chat</h2>
+        <p>Real-time чат</p>
         <div id="auth-tabs">
             <button class="active" onclick="showTab('login')">Войти</button>
             <button onclick="showTab('register')">Регистрация</button>
         </div>
-        <div id="tab-login">
+        <div id="tab-login" style="display:flex;flex-direction:column;gap:10px">
             <input id="login-email" type="email" placeholder="Email">
-            <input id="login-password" type="password" placeholder="Пароль">
-            <button onclick="login()">Войти</button>
+            <input id="login-password" type="password" placeholder="Пароль" onkeydown="if(event.key==='Enter')login()">
+            <button class="primary" onclick="login()">Войти</button>
         </div>
-        <div id="tab-register" style="display:none">
-            <input id="reg-username" type="text" placeholder="Имя пользователя">
+        <div id="tab-register" style="display:none;flex-direction:column;gap:10px">
+            <input id="reg-username" placeholder="Имя пользователя">
             <input id="reg-email" type="email" placeholder="Email">
-            <input id="reg-password" type="password" placeholder="Пароль">
-            <button onclick="register()">Зарегистрироваться</button>
+            <input id="reg-password" type="password" placeholder="Пароль" onkeydown="if(event.key==='Enter')register()">
+            <button class="primary" onclick="register()">Зарегистрироваться</button>
         </div>
         <div id="auth-error"></div>
     </div>
 </div>
 
-<!-- Основной чат -->
-<div id="sidebar">
-    <h2>💬 go-chat</h2>
-    <div id="create-room">
-        <input id="new-room-name" placeholder="Новая комната">
-        <button onclick="createRoom()">+</button>
+<div id="profile-modal" class="modal-bg">
+    <div class="modal-box">
+        <h3>👤 Редактировать профиль</h3>
+        <input id="profile-username" placeholder="Новый username">
+        <input id="profile-email" type="email" placeholder="Новый email">
+        <input id="profile-password" type="password" placeholder="Новый пароль">
+        <div class="modal-actions">
+            <button class="primary" onclick="saveProfile()">Сохранить</button>
+            <button onclick="closeModal('profile-modal')">Отмена</button>
+        </div>
+        <div id="profile-error" style="color:#ef4444;font-size:12px"></div>
     </div>
-    <ul id="room-list"></ul>
-    <button onclick="logout()">Выйти</button>
 </div>
 
-<div id="chat">
-    <div id="chat-header">Выбери комнату</div>
-    <div id="messages"></div>
-    <div id="send-area">
-        <input id="message-input" placeholder="Сообщение..." onkeydown="if(event.key==='Enter') sendMessage()">
-        <button onclick="sendMessage()">Отправить</button>
+<div id="sidebar">
+    <div id="sidebar-header">
+        <h2>💬 go-chat</h2>
+        <div id="current-user">не авторизован</div>
     </div>
+    <div id="room-section">
+        <div id="room-section-title">Комнаты</div>
+        <ul id="room-list"></ul>
+    </div>
+    <div id="create-room-form">
+        <input id="new-room-name" placeholder="Новая комната..." onkeydown="if(event.key==='Enter')createRoom()">
+        <button class="primary" onclick="createRoom()">+</button>
+    </div>
+    <div id="sidebar-footer">
+        <button onclick="openModal('profile-modal')" style="flex:1">⚙️ Профиль</button>
+        <button onclick="logout()" class="danger" style="flex:1">Выйти</button>
+    </div>
+</div>
+
+<div id="main">
+    <div id="chat">
+        <div id="chat-header">
+            <div id="chat-title">Выбери комнату</div>
+            <div id="chat-header-right"></div>
+        </div>
+        <div id="empty-chat">
+            <div class="icon">💬</div>
+            <div>Выбери комнату чтобы начать общение</div>
+        </div>
+        <div id="messages" style="display:none"></div>
+        <div id="send-area" style="display:none">
+            <input id="message-input" placeholder="Напиши сообщение..." onkeydown="if(event.key==='Enter')sendMessage()" disabled>
+            <button class="primary" onclick="sendMessage()" id="send-btn" disabled>Отправить</button>
+        </div>
+    </div>
+
+    <div id="members-panel">
+        <div id="members-header">В комнате — <span id="members-count">0</span></div>
+        <div id="members-list"></div>
+    </div>
+</div>
+
+<div id="debug">
+    <div id="debug-title">
+        <span>🐛 debug</span>
+        <span onclick="document.getElementById('debug-log').innerHTML=''" style="cursor:pointer">cls</span>
+    </div>
+    <div id="debug-log"></div>
 </div>
 
 <script>
     const API = '/api/v1'
-    let token = localStorage.getItem('token')
+    let token = sessionStorage.getItem('token')
+    let currentUsername = sessionStorage.getItem('username') || ''
+    let currentUserID = sessionStorage.getItem('userID') || ''
     let currentRoomID = null
-    let currentUserID = null
+    let currentRoomOwnerID = null
     let ws = null
 
-    // --- Авторизация ---
+    // онлайн участники текущей комнаты: Map<userID, username>
+    const onlineMembers = new Map()
+
+    function log(msg, type = 'info') {
+        const el = document.getElementById('debug-log')
+        const div = document.createElement('div')
+        div.className = type
+        div.textContent = new Date().toLocaleTimeString() + ' ' + msg
+        el.appendChild(div)
+        el.scrollTop = el.scrollHeight
+    }
+
+    function updateUserDisplay() {
+        document.getElementById('current-user').textContent = '🟢 ' + currentUsername
+        document.title = 'go-chat — ' + currentUsername
+    }
+
+    function parseToken(t) {
+        try {
+            const payload = JSON.parse(atob(t.split('.')[1]))
+            currentUserID = payload.user_id || ''
+            currentUsername = payload.username || ''
+            sessionStorage.setItem('userID', currentUserID)
+            sessionStorage.setItem('username', currentUsername)
+        } catch(e) { log('JWT parse err', 'err') }
+    }
 
     if (token) {
+        parseToken(token)
+        log('Сессия: ' + currentUsername, 'ok')
         document.getElementById('auth').style.display = 'none'
+        updateUserDisplay()
         loadRooms()
     }
 
     function showTab(tab) {
         document.getElementById('tab-login').style.display = tab === 'login' ? 'flex' : 'none'
         document.getElementById('tab-register').style.display = tab === 'register' ? 'flex' : 'none'
-        document.querySelectorAll('#auth-tabs button').forEach((b, i) => {
-            b.classList.toggle('active', (tab === 'login' && i === 0) || (tab === 'register' && i === 1))
-        })
-        document.getElementById('tab-login').style.flexDirection = 'column'
-        document.getElementById('tab-register').style.flexDirection = 'column'
+        document.querySelectorAll('#auth-tabs button').forEach((b, i) =>
+            b.classList.toggle('active', (tab==='login'&&i===0)||(tab==='register'&&i===1)))
+        document.getElementById('auth-error').textContent = ''
+        document.getElementById('auth-error').style.color = '#ef4444'
     }
 
     async function login() {
-        const email = document.getElementById('login-email').value
+        const email = document.getElementById('login-email').value.trim()
         const password = document.getElementById('login-password').value
+        if (!email || !password) return
         const res = await fetch(`${API}/auth/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password })
         })
-        const data = await res.json()
-        if (!res.ok) { document.getElementById('auth-error').textContent = data; return }
-        token = data.token
-        currentUserID = data.user.id
-        localStorage.setItem('token', token)
-        document.getElementById('auth').style.display = 'none'
-        loadRooms()
+        const raw = await res.text()
+        log(`login ${res.status}`, res.ok ? 'ok' : 'err')
+        if (!res.ok) { document.getElementById('auth-error').textContent = raw; return }
+        try {
+            const data = JSON.parse(raw)
+            token = data.token
+            sessionStorage.setItem('token', token)
+            parseToken(token)
+            document.getElementById('auth').style.display = 'none'
+            updateUserDisplay()
+            loadRooms()
+        } catch(e) { log('JSON err', 'err') }
     }
 
     async function register() {
-        const username = document.getElementById('reg-username').value
-        const email = document.getElementById('reg-email').value
+        const username = document.getElementById('reg-username').value.trim()
+        const email = document.getElementById('reg-email').value.trim()
         const password = document.getElementById('reg-password').value
+        if (!username || !email || !password) return
         const res = await fetch(`${API}/auth/register`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, email, password })
         })
+        log(`register ${res.status}`, res.ok ? 'ok' : 'err')
         if (!res.ok) { document.getElementById('auth-error').textContent = 'Ошибка регистрации'; return }
+        document.getElementById('login-email').value = email
         showTab('login')
+        document.getElementById('auth-error').style.color = '#22c55e'
+        document.getElementById('auth-error').textContent = '✓ Зарегистрирован! Войдите.'
     }
 
-    function logout() {
-        localStorage.removeItem('token')
-        location.reload()
-    }
+    function logout() { sessionStorage.clear(); location.reload() }
+    function openModal(id) { document.getElementById(id).classList.add('open') }
+    function closeModal(id) { document.getElementById(id).classList.remove('open') }
 
-    // --- Комнаты ---
+    async function saveProfile() {
+        const body = {}
+        const u = document.getElementById('profile-username').value
+        const e = document.getElementById('profile-email').value
+        const p = document.getElementById('profile-password').value
+        if (u) body.username = u
+        if (e) body.email = e
+        if (p) body.password = p
+        if (!Object.keys(body).length) return
+        const res = await fetch(`${API}/users/me`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(body)
+        })
+        log(`PUT /users/me → ${res.status}`, res.ok ? 'ok' : 'err')
+        if (!res.ok) { document.getElementById('profile-error').textContent = 'Ошибка'; return }
+        closeModal('profile-modal')
+    }
 
     async function loadRooms() {
         const res = await fetch(`${API}/rooms`, { headers: { 'Authorization': `Bearer ${token}` } })
+        log(`GET /rooms → ${res.status}`, res.ok ? 'ok' : 'err')
+        if (!res.ok) return
         const data = await res.json()
+        const rooms = data.rooms || data || []
         const list = document.getElementById('room-list')
         list.innerHTML = ''
-        data.rooms.forEach(room => {
+        rooms.forEach(room => {
             const li = document.createElement('li')
-            li.textContent = room.name
-            li.onclick = () => joinRoom(room.id, room.name, li)
+            if (room.id === currentRoomID) li.classList.add('active')
+            const isOwner = room.owner_id === currentUserID
+            li.innerHTML = `
+                <div class="room-left">
+                    <span class="room-hash">#</span>
+                    <span class="room-name-text">${room.name}</span>
+                    ${isOwner ? '<span class="room-owner-badge">owner</span>' : ''}
+                </div>
+                <div class="room-actions">
+                    ${isOwner ? `<span class="delete-room" onclick="deleteRoom(event,'${room.id}')">✕</span>` : ''}
+                </div>
+            `
+            li.onclick = (e) => {
+                if (e.target.classList.contains('delete-room')) return
+                joinRoom(room.id, room.name, room.owner_id, li)
+            }
             list.appendChild(li)
         })
     }
 
     async function createRoom() {
-        const name = document.getElementById('new-room-name').value
+        const name = document.getElementById('new-room-name').value.trim()
         if (!name) return
-        await fetch(`${API}/rooms`, {
+        const res = await fetch(`${API}/rooms`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ name, description: '' })
         })
-        document.getElementById('new-room-name').value = ''
+        log(`POST /rooms → ${res.status}`, res.ok ? 'ok' : 'err')
+        if (res.ok) {
+            document.getElementById('new-room-name').value = ''
+            loadRooms()
+        }
+    }
+
+    async function deleteRoom(e, roomID) {
+        e.stopPropagation()
+        if (!confirm('Удалить комнату?')) return
+        const res = await fetch(`${API}/rooms/${roomID}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+        log(`DELETE /rooms → ${res.status}`, res.ok ? 'ok' : 'err')
+        if (!res.ok) return
+        if (currentRoomID === roomID) {
+            if (ws) { ws.onclose = null; ws.close(); ws = null }
+            currentRoomID = null
+            currentRoomOwnerID = null
+            document.getElementById('empty-chat').style.display = 'flex'
+            document.getElementById('messages').style.display = 'none'
+            document.getElementById('send-area').style.display = 'none'
+            document.getElementById('chat-title').textContent = 'Выбери комнату'
+            document.getElementById('chat-title').classList.remove('active')
+            document.getElementById('members-panel').classList.remove('visible')
+        }
         loadRooms()
     }
 
-    // --- WebSocket ---
+    async function loadHistory(roomID) {
+        const res = await fetch(`${API}/rooms/${roomID}/messages?limit=50&offset=0`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (!res.ok) return
+        const data = await res.json()
+        const messages = data.messages || []
+        messages.reverse().forEach(msg => addMessage(msg, true))
+        if (messages.length) log(`История: ${messages.length}`, 'ok')
+    }
 
-    function joinRoom(roomID, roomName, li) {
-        if (ws) ws.close()
+    function joinRoom(roomID, roomName, ownerID, li) {
+        if (ws) { ws.onclose = null; ws.close(); ws = null }
         currentRoomID = roomID
-        document.getElementById('chat-header').textContent = '# ' + roomName
+        currentRoomOwnerID = ownerID
+        onlineMembers.clear()
+
+        document.getElementById('chat-title').textContent = '# ' + roomName
+        document.getElementById('chat-title').classList.add('active')
         document.getElementById('messages').innerHTML = ''
+        document.getElementById('empty-chat').style.display = 'none'
+        document.getElementById('messages').style.display = 'flex'
+        document.getElementById('send-area').style.display = 'flex'
+        document.getElementById('message-input').disabled = true
+        document.getElementById('send-btn').disabled = true
+        document.getElementById('members-panel').classList.add('visible')
         document.querySelectorAll('#room-list li').forEach(el => el.classList.remove('active'))
         li.classList.add('active')
 
+        // показываем владельца в заголовке
+        const isOwner = ownerID === currentUserID
+        document.getElementById('chat-header-right').textContent = isOwner ? '👑 Вы владелец' : ''
+
+        loadHistory(roomID)
+        renderMembers()
+
         ws = new WebSocket(`ws://${location.host}/api/v1/ws/${roomID}?token=${token}`)
 
-        ws.onmessage = (event) => {
-            const msg = JSON.parse(event.data)
-            addMessage(msg)
+        ws.onopen = () => {
+            log('WS открыт', 'ok')
+            document.getElementById('message-input').disabled = false
+            document.getElementById('send-btn').disabled = false
+            // добавляем себя в список онлайн
+            onlineMembers.set(currentUserID, currentUsername)
+            renderMembers()
+            addSystemMessage('🟢 Вы вошли в комнату # ' + roomName, 'join')
         }
 
-        ws.onclose = () => console.log('WebSocket закрыт')
-        ws.onerror = (e) => console.error('WebSocket ошибка', e)
+        ws.onmessage = (event) => {
+            try {
+                const msg = JSON.parse(event.data)
+                if (msg.type === 'join') {
+                    onlineMembers.set(msg.user_id || msg.username, msg.username)
+                    renderMembers()
+                    addSystemMessage('🟢 ' + msg.username + ' вошёл в комнату', 'join')
+                } else if (msg.type === 'leave') {
+                    onlineMembers.delete(msg.user_id || msg.username)
+                    renderMembers()
+                    addSystemMessage('🔴 ' + msg.username + ' покинул комнату', 'leave')
+                } else if (msg.type === 'message') {
+                    addMessage(msg, false)
+                }
+            } catch(e) { log('parse err', 'err') }
+        }
+
+        ws.onclose = () => {
+            log('WS закрыт', 'err')
+            if (currentRoomID === roomID) {
+                document.getElementById('message-input').disabled = true
+                document.getElementById('send-btn').disabled = true
+                addSystemMessage('🔴 Соединение потеряно', 'leave')
+                onlineMembers.clear()
+                renderMembers()
+            }
+        }
+
+        ws.onerror = () => log('WS ошибка', 'err')
+    }
+
+    function renderMembers() {
+        const list = document.getElementById('members-list')
+        const count = document.getElementById('members-count')
+        list.innerHTML = ''
+        count.textContent = onlineMembers.size
+        onlineMembers.forEach((username, userID) => {
+            const isOwner = userID === currentRoomOwnerID || username === currentRoomOwnerID
+            const isMe = userID === currentUserID
+            const div = document.createElement('div')
+            div.className = 'member-item'
+            div.innerHTML = `
+                <div class="member-dot"></div>
+                <div class="member-name">${username}${isMe ? ' (вы)' : ''}</div>
+                ${isOwner ? '<div class="member-crown">👑</div>' : ''}
+            `
+            list.appendChild(div)
+        })
     }
 
     function sendMessage() {
         const input = document.getElementById('message-input')
         const body = input.value.trim()
-        if (!body || !ws) return
+        if (!body || !ws || ws.readyState !== WebSocket.OPEN) return
         ws.send(JSON.stringify({ body }))
         input.value = ''
     }
 
-    function addMessage(msg) {
+    function addMessage(msg, isHistory) {
         const messages = document.getElementById('messages')
+        const isMe = msg.user_id === currentUserID
         const div = document.createElement('div')
-        div.className = 'message' + (msg.user_id === currentUserID ? ' mine' : '')
-        div.innerHTML = `<div class="author">${msg.username || msg.user_id}</div><div>${msg.body}</div>`
+        div.className = 'msg-group'
+        const time = isHistory && msg.created_at
+            ? new Date(msg.created_at).toLocaleTimeString()
+            : new Date().toLocaleTimeString()
+        const name = msg.username || (isMe ? currentUsername : 'unknown')
+        div.innerHTML = `
+            <div class="msg-author ${isMe ? 'me' : ''}">
+                ${name}<span class="msg-time">${time}</span>
+            </div>
+            <div class="msg-body">${escapeHtml(msg.body)}</div>
+        `
         messages.appendChild(div)
         messages.scrollTop = messages.scrollHeight
+    }
+
+    function addSystemMessage(text, type) {
+        const messages = document.getElementById('messages')
+        if (messages.style.display === 'none') return
+        const div = document.createElement('div')
+        div.className = 'msg-system ' + (type || '')
+        div.textContent = text
+        messages.appendChild(div)
+        messages.scrollTop = messages.scrollHeight
+    }
+
+    function escapeHtml(text) {
+        return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     }
 </script>
 </body>

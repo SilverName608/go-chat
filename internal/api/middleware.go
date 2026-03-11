@@ -19,13 +19,18 @@ func NewMiddleware(jwtSecret string) *Middleware {
 
 func (m *Middleware) Auth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token := r.Header.Get("Authorization")
-		if token == "" {
+		var tokenString string
+		header := r.Header.Get("Authorization")
+		if header != "" {
+			tokenString = strings.TrimPrefix(header, "Bearer ")
+		} else {
+			tokenString = r.URL.Query().Get("token")
+		}
+
+		if tokenString == "" {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
-
-		tokenString := strings.TrimPrefix(token, "Bearer ")
 
 		decoded, err := jwt.ParseWithClaims(tokenString, jwt.MapClaims{}, func(token *jwt.Token) (interface{}, error) {
 			return []byte(m.jwtSecret), nil
@@ -43,7 +48,6 @@ func (m *Middleware) Auth(next http.Handler) http.Handler {
 		}
 
 		ctx := context.WithValue(r.Context(), "user_id", userID)
-
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
