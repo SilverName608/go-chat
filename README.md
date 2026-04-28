@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-# go-chat
-=======
 # go-chat
 
 Real-time чат на Go с WebSocket, JWT авторизацией и PostgreSQL.
@@ -112,4 +109,3 @@ go-chat/
 | Метод | Путь | Описание |
 |---|---|---|
 | GET | /api/v1/ws/{roomID} | Подключиться к комнате |
->>>>>>> develop
